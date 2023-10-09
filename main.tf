@@ -1,3 +1,4 @@
+# Creating AWS Provider
 provider "aws" {
   profile = "default"
   region  = "${var.region}"
