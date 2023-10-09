@@ -127,7 +127,7 @@ resource "aws_instance" "demoinstance" {
   user_data                   = "${file("data.sh")}"
 
   tags = {
-    Name = "My Public Instance 1"
+    Name = "My Public Instance"
   }
 }
 
