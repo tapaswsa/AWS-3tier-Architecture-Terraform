@@ -12,7 +12,8 @@ The code does the following:
 
 Command to be used:
 1. terraform init
-2. terraform apply
+2. terraform plan
+3. terraform apply
 
 ### Note: 
 When running the "main.tf" file you might get an error saying that the subnet_group does not exist. In this case just run it again using " terraform apply" and you will be able to get the output.
