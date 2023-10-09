@@ -3,206 +3,155 @@ provider "aws" {
   region  = "${var.region}"
 }
 
-data "aws_availability_zones" "available" {}
-
-resource "aws_vpc" "default" {
-  cidr_block = "${var.vpc_cidr_block}"
-
-  tags = {
-    Name = "${var.vpc_name}"
-  }
-}
-
-resource "aws_subnet" "web" {
-  count             = "${length(var.web_subnets_cidr_blocks)}"
-  vpc_id            = "${aws_vpc.default.id}"
-  availability_zone = "${data.aws_availability_zones.available.names[count.index]}"
-  cidr_block        = "${var.web_subnets_cidr_blocks[count.index]}"
+# Creating VPC
+resource "aws_vpc" "demovpc" {
+  cidr_block       = "${var.vpc_cidr}"
+  instance_tenancy = "default"
 
   tags = {
-    Name = "web-public-${count.index}"
+    Name = "Demo VPC"
   }
-
 }
 
-resource "aws_subnet" "app" {
-  count             = "${length(var.app_subnets_cidr_blocks)}"
-  vpc_id            = "${aws_vpc.default.id}"
-  availability_zone = "${data.aws_availability_zones.available.names[count.index]}"
-  cidr_block        = "${var.app_subnets_cidr_blocks[count.index]}"
+# Creating 1st web subnet 
+resource "aws_subnet" "public-subnet-1" {
+  vpc_id                  = "${aws_vpc.demovpc.id}"
+  cidr_block             = "${var.subnet_cidr}"
+  map_public_ip_on_launch = true
+  availability_zone = "us-east-1a"
 
   tags = {
-    Name = "app-private-${count.index}"
+    Name = "Web Subnet 1"
   }
-
 }
 
-resource "aws_subnet" "db" {
-  count             = "${length(var.public_subnets_cidr_blocks)}"
-  vpc_id            = "${aws_vpc.default.id}"
-  availability_zone = "${data.aws_availability_zones.available.names[count.index]}"
-  cidr_block        = "${var.db_subnets_cidr_blocks[count.index]}"
+# Creating 2nd web subnet 
+resource "aws_subnet" "public-subnet-2" {
+  vpc_id                  = "${aws_vpc.demovpc.id}"
+  cidr_block             = "${var.subnet1_cidr}"
+  map_public_ip_on_launch = true
+  availability_zone = "us-east-1b"
 
   tags = {
-    Name = "db-private-${count.index}"
+    Name = "Web Subnet 2"
   }
-
 }
 
-# Create an internet gateway to give our subnet access to the outside world
-resource "aws_internet_gateway" "default" {
-  vpc_id = "${aws_vpc.default.id}"
+# Creating 1st application subnet 
+resource "aws_subnet" "application-subnet-1" {
+  vpc_id                  = "${aws_vpc.demovpc.id}"
+  cidr_block             = "${var.subnet2_cidr}"
+  map_public_ip_on_launch = false
+  availability_zone = "us-east-1a"
 
   tags = {
-    Name = "${var.vpc_name}"
+    Name = "Application Subnet 1"
   }
 }
 
-# Create public subnet for common resources like NAT Gateway etc.
-resource "aws_subnet" "public" {
-  count             = "${length(var.public_subnets_cidr_blocks)}"
-  vpc_id            = "${aws_vpc.default.id}"
-  availability_zone = "${data.aws_availability_zones.available.names[count.index]}"
-  cidr_block        = "${var.public_subnets_cidr_blocks[count.index]}"
+# Creating 2nd application subnet 
+resource "aws_subnet" "application-subnet-2" {
+  vpc_id                  = "${aws_vpc.demovpc.id}"
+  cidr_block             = "${var.subnet3_cidr}"
+  map_public_ip_on_launch = false
+  availability_zone = "us-east-1b"
 
   tags = {
-    Name = "public-${count.index}"
+    Name = "Application Subnet 2"
   }
 }
 
-# Create Route tables for public layer
-resource "aws_route_table" "public" {
-  vpc_id = "${aws_vpc.default.id}"
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = "${aws_internet_gateway.default.id}"
-  }
-
-  tags {
-    Name = "Public"
-  }
-}
-
-resource "aws_route_table_association" "public" {
-  count          = "${length(var.public_subnets_cidr_blocks)}"
-  subnet_id      = "${element(aws_subnet.public.*.id, count.index)}"
-  route_table_id = "${aws_route_table.public.id}"
-}
-
-# Create Elastic IP for NAT gateway
-resource "aws_eip" "nat_eip" {
-  vpc = true
+# Create Database Private Subnet
+resource "aws_subnet" "database-subnet-1" {
+  vpc_id            = "${aws_vpc.demovpc.id}"
+  cidr_block        = "${var.subnet4_cidr}"
+  availability_zone = "us-east-1a"
 
   tags = {
-    Name = "Nat Gateway IP"
+    Name = "Database Subnet 1"
   }
 }
 
-# Create an NAT gateway to give our private subnets to access to the outside world
-
-resource "aws_nat_gateway" "default" {
-  allocation_id = "${aws_eip.nat_eip.id}"
-  subnet_id     = "${element(aws_subnet.public.*.id, 0)}"
+# Create Database Private Subnet
+resource "aws_subnet" "database-subnet-2" {
+  vpc_id            = "${aws_vpc.demovpc.id}"
+  cidr_block        = "${var.subnet5_cidr}"
+  availability_zone = "us-east-1a"
 
   tags = {
-    Name = "${var.vpc_name}"
+    Name = "Database Subnet 1"
   }
 }
 
-# Create Route tables for web layer
-resource "aws_route_table" "web" {
-  vpc_id = "${aws_vpc.default.id}"
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = "${aws_internet_gateway.default.id}"
-  }
-
-  tags {
-    Name = "Web"
-  }
+# Creating Internet Gateway 
+resource "aws_internet_gateway" "demogateway" {
+  vpc_id = "${aws_vpc.demovpc.id}"
 }
 
-resource "aws_route_table_association" "web" {
-  count          = "${length(var.web_subnets_cidr_blocks)}"
-  subnet_id      = "${element(aws_subnet.web.*.id, count.index)}"
-  route_table_id = "${aws_route_table.web.id}"
+# Creating Route Table
+resource "aws_route_table" "route" {
+    vpc_id = "${aws_vpc.demovpc.id}"
+
+    route {
+        cidr_block = "0.0.0.0/0"
+        gateway_id = "${aws_internet_gateway.demogateway.id}"
+    }
+
+    tags = {
+        Name = "Route to internet"
+    }
 }
 
-# Create Route tables for App layer
-
-resource "aws_route_table" "app" {
-  vpc_id = "${aws_vpc.default.id}"
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = "${aws_nat_gateway.default.id}"
-  }
-
-  tags {
-    Name = "App"
-  }
+# Associating Route Table
+resource "aws_route_table_association" "rt1" {
+    subnet_id = "${aws_subnet.demosubnet.id}"
+    route_table_id = "${aws_route_table.route.id}"
 }
 
-resource "aws_route_table_association" "app" {
-  count          = "${length(var.app_subnets_cidr_blocks)}"
-  subnet_id      = "${element(aws_subnet.app.*.id, count.index)}"
-  route_table_id = "${aws_route_table.app.id}"
+# Associating Route Table
+resource "aws_route_table_association" "rt2" {
+    subnet_id = "${aws_subnet.demosubnet1.id}"
+    route_table_id = "${aws_route_table.route.id}"
 }
 
-# Create Route tables for App layer
+# Creating 1st EC2 instance in Public Subnet
+resource "aws_instance" "demoinstance" {
+  ami                         = "ami-087c17d1fe0178315"
+  instance_type               = "t2.micro"
+  count                       = 1
+  key_name                    = "tests"
+  vpc_security_group_ids      = ["${aws_security_group.demosg.id}"]
+  subnet_id                   = "${aws_subnet.demoinstance.id}"
+  associate_public_ip_address = true
+  user_data                   = "${file("data.sh")}"
 
-resource "aws_route_table" "db" {
-  vpc_id = "${aws_vpc.default.id}"
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = "${aws_nat_gateway.default.id}"
-  }
-
-  tags {
-    Name = "DB"
+  tags = {
+    Name = "My Public Instance"
   }
 }
 
-resource "aws_route_table_association" "db" {
-  count          = "${length(var.db_subnets_cidr_blocks)}"
-  subnet_id      = "${element(aws_subnet.db.*.id, count.index)}"
-  route_table_id = "${aws_route_table.db.id}"
-}
+# Creating 2nd EC2 instance in Public Subnet
+resource "aws_instance" "demoinstance1" {
+  ami                         = "ami-087c17d1fe0178315"
+  instance_type               = "t2.micro"
+  count                       = 1
+  key_name                    = "tests"
+  vpc_security_group_ids      = ["${aws_security_group.demosg.id}"]
+  subnet_id                   = "${aws_subnet.demoinstance.id}"
+  associate_public_ip_address = true
+  user_data                   = "${file("data.sh")}"
 
-# Create RDS subnet group
-
-resource "aws_db_subnet_group" "rds_subnet_group" {
-  name       = "${var.rds_subnet_name}"
-  subnet_ids = ["${aws_subnet.db.*.id}"]
-
-  tags {
-    Name = "${var.rds_subnet_name}"
+  tags = {
+    Name = "My Public Instance 2"
   }
 }
 
-# Create RDS instance 
+# Creating Security Group 
+resource "aws_security_group" "demosg" {
+  vpc_id = "${aws_vpc.demovpc.id}"
 
-resource "aws_db_instance" "rds" {
-  allocated_storage    = "${var.rds_storage}"
-  engine               = "${var.rds_engine}"
-  instance_class       = "${var.rds_instance_class}"
-  name                 = "${var.rds_name}"
-  username             = "${var.rds_username}"
-  password             = "${var.rds_password}"
-  db_subnet_group_name = "${var.rds_subnet_name}"
-  depends_on = ["aws_db_subnet_group.rds_subnet_group"]
-}
-
-# Create security group for webservers
-
-resource "aws_security_group" "webserver_sg" {
-  name        = "allow_http"
-  description = "Allow http inbound traffic"
-  vpc_id      = "${aws_vpc.default.id}"
-
+  # Inbound Rules
+  # HTTP access from anywhere
   ingress {
     from_port   = 80
     to_port     = 80
@@ -210,6 +159,24 @@ resource "aws_security_group" "webserver_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # HTTPS access from anywhere
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # SSH access from anywhere
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Outbound Rules
+  # Internet access to anywhere
   egress {
     from_port   = 0
     to_port     = 0
@@ -217,73 +184,110 @@ resource "aws_security_group" "webserver_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags {
-    Name = "${var.websg_name}"
+  tags = {
+    Name = "Web SG"
   }
 }
 
-# Create EC2 instances for webservers
+# Create Database Security Group
+resource "aws_security_group" "database-sg" {
+  name        = "Database SG"
+  description = "Allow inbound traffic from application layer"
+  vpc_id      = aws_vpc.demovpc.id
 
-resource "aws_instance" "webservers" {
-  count           = "${length(var.web_subnets_cidr_blocks)}"
-  ami             = "${var.web_ami}"
-  instance_type   = "${var.web_instance}"
-  security_groups = ["${aws_security_group.webserver_sg.id}"]
-  subnet_id       = "${element(aws_subnet.web.*.id,count.index)}"
+  ingress {
+    description     = "Allow traffic from application layer"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.demosg.id]
+  }
 
-  tags {
-    Name = "${element(var.webserver_name,count.index)}"
+  egress {
+    from_port   = 32768
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "Database SG"
   }
 }
 
-# Creating application load balancer
-
-resource "aws_lb" "weblb" {
-  name               = "${var.lb_name}"
+# Creating External LoadBalancer
+resource "aws_lb" "external-alb" {
+  name               = "External LB"
+  internal           = false
   load_balancer_type = "application"
-  security_groups    = ["${aws_security_group.webserver_sg.id}"]
-  subnets            = ["${aws_subnet.web.*.id}"]
-
-  tags {
-    Name = "${var.lb_name}"
-  }
+  security_groups    = [aws_security_group.demosg.id]
+  subnets            = [aws_subnet.public-subnet-1.id, aws_subnet.public-subnet-1.id]
 }
 
-# Creating load balancer target group
-
-resource "aws_lb_target_group" "alb_group" {
-  name     = "${var.tg_name}"
-  port     = "${var.tg_port}"
-  protocol = "${var.tg_protocol}"
-  vpc_id   = "${aws_vpc.default.id}"
+resource "aws_lb_target_group" "target-elb" {
+  name     = "ALB TG"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.demovpc.id
 }
 
-#Creating listeners
+resource "aws_lb_target_group_attachment" "attachment" {
+  target_group_arn = aws_lb_target_group.external-alb.arn
+  target_id        = aws_instance.demoinstance.id
+  port             = 80
 
-resource "aws_lb_listener" "webserver-lb" {
-  load_balancer_arn = "${aws_lb.weblb.arn}"
-  port              = "${var.listener_port}"
-  protocol          = "${var.listener_protocol}"
+  depends_on = [
+    aws_instance.demoinstance,
+  ]
+}
 
-  # certificate_arn  = "${var.certificate_arn_user}"
+resource "aws_lb_target_group_attachment" "attachment1" {
+  target_group_arn = aws_lb_target_group.external-alb.arn
+  target_id        = aws_instance.demoinstance1.id
+  port             = 80
+
+  depends_on = [
+    aws_instance.demoinstance1,
+  ]
+}
+
+resource "aws_lb_listener" "external-elb" {
+  load_balancer_arn = aws_lb.external-alb.arn
+  port              = "80"
+  protocol          = "HTTP"
+
   default_action {
-    target_group_arn = "${aws_lb_target_group.alb_group.arn}"
     type             = "forward"
+    target_group_arn = aws_lb_target_group.external-alb.arn
   }
 }
 
-#Creating listener rules
+# Creating RDS Instance
+resource "aws_db_subnet_group" "default" {
+  name       = "main"
+  subnet_ids = [aws_subnet.database-subnet-1.id, aws_subnet.database-subnet-1.id]
 
-resource "aws_lb_listener_rule" "allow_all" {
-  listener_arn = "${aws_lb_listener.webserver-lb.arn}"
-
-  action {
-    type             = "forward"
-    target_group_arn = "${aws_lb_target_group.alb_group.arn}"
+  tags = {
+    Name = "My DB subnet group"
   }
+}
 
-  condition {
-    field  = "path-pattern"
-    values = ["*"]
-  }
+resource "aws_db_instance" "default" {
+  allocated_storage      = 10
+  db_subnet_group_name   = aws_db_subnet_group.default.id
+  engine                 = "mysql"
+  engine_version         = "8.0.20"
+  instance_class         = "db.t2.micro"
+  multi_az               = true
+  name                   = "mydb"
+  username               = "username"
+  password               = "password"
+  skip_final_snapshot    = true
+  vpc_security_group_ids = [aws_security_group.database-sg.id]
+}
+
+# Getting the DNS of load balancer
+output "lb_dns_name" {
+  description = "The DNS name of the load balancer"
+  value       = aws_lb.external-alb.dns_name
 }
